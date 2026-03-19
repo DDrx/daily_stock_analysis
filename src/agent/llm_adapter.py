@@ -8,6 +8,7 @@ interface consumed by the AgentExecutor, via LiteLLM.
 
 import json
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -254,9 +255,18 @@ class LLMToolAdapter:
         """Shared completion path for both tool and text-only calls."""
         config = self._config
         models_to_try = get_effective_agent_models_to_try(config)
+        started_at = time.time()
 
         last_error = None
         for model in models_to_try:
+            remaining_timeout = timeout
+            if timeout is not None and timeout > 0:
+                remaining_timeout = max(0.0, float(timeout) - (time.time() - started_at))
+                if remaining_timeout <= 0:
+                    last_error = TimeoutError(
+                        f"LLM completion timed out before trying fallback model {model}"
+                    )
+                    break
             try:
                 return self._call_litellm_model(
                     messages,
@@ -264,7 +274,7 @@ class LLMToolAdapter:
                     model,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    timeout=timeout,
+                    timeout=remaining_timeout,
                 )
             except Exception as e:
                 logger.warning(f"Agent LLM call failed with {model}: {e}")
