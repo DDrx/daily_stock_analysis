@@ -440,6 +440,20 @@ User: "analyze TSLA and NVDA using trend strategy"
         r'\s+',
     )
 
+    @classmethod
+    def _passes_nl_prefilter(cls, text: str) -> bool:
+        """Return whether the message is worth the LLM intent-routing cost."""
+        if cls._NL_PREFILTER.search(text):
+            return True
+
+        stripped = (text or "").strip()
+        if " " in stripped or len(stripped) > 10:
+            return False
+
+        from src.agent.orchestrator import _extract_stock_code
+
+        return bool(_extract_stock_code(stripped))
+
     async def _try_nl_routing(self, message: BotMessage) -> Optional[BotResponse]:
         """Route a non-command message to the appropriate command via LLM intent parsing.
 
@@ -475,7 +489,7 @@ User: "analyze TSLA and NVDA using trend strategy"
             return None
 
         # Layer 1: cheap pre-filter — skip obviously irrelevant messages
-        if not self._NL_PREFILTER.search(text):
+        if not self._passes_nl_prefilter(text):
             return None
 
         # Layer 2: LLM intent parsing — extract codes, intent, strategy
@@ -542,7 +556,7 @@ User: "analyze TSLA and NVDA using trend strategy"
         if not text or len(text) > 500:
             return None
 
-        if not self._NL_PREFILTER.search(text):
+        if not self._passes_nl_prefilter(text):
             return None
 
         parsed = self._parse_intent_via_llm_sync(text, config)

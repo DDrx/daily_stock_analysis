@@ -1377,6 +1377,49 @@ class TestResearchCommandTimeout(unittest.TestCase):
 
         self.assertIn("超时", response.text)
 
+    def test_research_recognizes_five_letter_us_ticker(self):
+        from bot.commands.research import ResearchCommand
+        from bot.models import BotMessage
+
+        cmd = ResearchCommand()
+        msg = MagicMock(spec=BotMessage)
+        msg.platform = "test"
+        msg.user_id = "u1"
+
+        result = SimpleNamespace(
+            success=True,
+            report="ok",
+            sub_questions=["q"],
+            findings_count=1,
+            total_tokens=100,
+            duration_s=1.0,
+            error=None,
+        )
+        captured = {}
+
+        def _capture_research(query, context=None):
+            captured["query"] = query
+            captured["context"] = context
+            return result
+
+        config = SimpleNamespace(
+            agent_deep_research_budget=30000,
+            agent_deep_research_timeout=1,
+            litellm_model="test-model",
+            agent_mode=True,
+        )
+        config.is_agent_available = lambda: True
+
+        with patch("bot.commands.research.get_config", return_value=config), \
+             patch("src.agent.factory.get_tool_registry", return_value=MagicMock()), \
+             patch("src.agent.llm_adapter.LLMToolAdapter", return_value=MagicMock()), \
+             patch("src.agent.research.ResearchAgent.research", side_effect=_capture_research):
+            response = cmd.execute(msg, ["googl", "风险"])
+
+        self.assertIn("Deep Research Report", response.text)
+        self.assertEqual(captured["context"], {"stock_code": "GOOGL", "stock_name": ""})
+        self.assertTrue(captured["query"].startswith("[Stock: GOOGL]"))
+
 
 # ============================================================
 # ResearchAgent filtered registry & API endpoint

@@ -74,6 +74,12 @@ class TestCommandDispatcherAsync(unittest.IsolatedAsyncioTestCase):
     def test_nl_prefilter_matches_bse_codes(self):
         self.assertIsNotNone(CommandDispatcher._NL_PREFILTER.search("帮我分析430001"))
 
+    def test_nl_prefilter_accepts_bare_lowercase_us_ticker(self):
+        self.assertTrue(CommandDispatcher._passes_nl_prefilter("tsla"))
+
+    def test_nl_prefilter_rejects_common_lowercase_word(self):
+        self.assertFalse(CommandDispatcher._passes_nl_prefilter("hello"))
+
     async def test_dispatch_async_awaits_command_execute_async(self):
         dispatcher = CommandDispatcher()
         command = DummyCommand()
